@@ -4,6 +4,7 @@ import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
 import android.os.Bundle
+import android.os.Trace
 import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -58,8 +59,8 @@ class RectanglesRenderer(private val activity: OpenGLTestActivity) : GLSurfaceVi
     )
 
     init {
-        // ✅ TĂNG LÊN 10,000 HÌNH
-        for (i in 0 until 10000) {
+        // ✅ TĂNG LÊN 20,000 HÌNH
+        for (i in 0 until 20000) {
             val x = Random.nextFloat() * 2 - 1
             val y = Random.nextFloat() * 2 - 1
             val width = 0.005f + Random.nextFloat() * 0.03f
@@ -84,7 +85,7 @@ class RectanglesRenderer(private val activity: OpenGLTestActivity) : GLSurfaceVi
                 Random.nextFloat(),
                 Random.nextFloat(),
                 Random.nextFloat(),
-                0.6f + Random.nextFloat() * 0.4f // Alpha blend
+                0.6f + Random.nextFloat() * 0.4f
             )
 
             rectangles.add(
@@ -140,16 +141,23 @@ class RectanglesRenderer(private val activity: OpenGLTestActivity) : GLSurfaceVi
 
     override fun onDrawFrame(gl: GL10?) {
 
+        // ✅ TRACE MARKER - Bắt đầu đo toàn bộ render
+        Trace.beginSection("OpenGL_Render_20000_Shapes")
+
+        val startRender = if (!hasMeasured) System.nanoTime() else 0L
+
+        // ✅ TRACE MARKER - Clear screen
+        Trace.beginSection("OpenGL_Clear")
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         GLES20.glUseProgram(program)
+        Trace.endSection()
 
         val positionHandle = GLES20.glGetAttribLocation(program, "vPosition")
         val colorHandle = GLES20.glGetUniformLocation(program, "vColor")
         val mvpMatrixHandle = GLES20.glGetUniformLocation(program, "uMVPMatrix")
 
-        val startRender = if (!hasMeasured) System.nanoTime() else 0L
-
-        // ✅ VẼ 10,000 HÌNH VỚI ROTATION (GPU XỬ LÝ SONG SONG)
+        // ✅ TRACE MARKER - Vẽ 20,000 hình
+        Trace.beginSection("OpenGL_Draw_Rectangles")
         for (rect in rectangles) {
             val modelMatrix = FloatArray(16)
             Matrix.setIdentityM(modelMatrix, 0)
@@ -166,8 +174,13 @@ class RectanglesRenderer(private val activity: OpenGLTestActivity) : GLSurfaceVi
             GLES20.glUniform4fv(colorHandle, 1, rect.color, 0)
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
         }
-
         GLES20.glDisableVertexAttribArray(positionHandle)
+        Trace.endSection() // End Draw_Rectangles
+
+        // ✅ QUAN TRỌNG: Đồng bộ GPU để đo chính xác
+        Trace.beginSection("OpenGL_Finish")
+        GLES20.glFinish()
+        Trace.endSection()
 
         if (!hasMeasured) {
             val renderTime = (System.nanoTime() - startRender) / 1_000_000.0
@@ -189,6 +202,9 @@ class RectanglesRenderer(private val activity: OpenGLTestActivity) : GLSurfaceVi
 
             hasMeasured = true
         }
+
+        // ✅ TRACE MARKER - Kết thúc đo toàn bộ
+        Trace.endSection() // End OpenGL_Render_20000_Shapes
     }
 
     private fun loadShader(type: Int, shaderCode: String): Int {
